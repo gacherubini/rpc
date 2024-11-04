@@ -5,28 +5,24 @@ import (
 	"net/rpc"
 	"sync"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 type DepositoArgs struct {
 	IDConta     int
 	Valor       float64
-	TransacaoID int
+	TransacaoID string
 }
 
 type SacarArgs struct {
 	IDConta     int
 	Valor       float64
-	TransacaoID int
+	TransacaoID string
 }
 
-var transacaoCounter int
-var transacaoMutex sync.Mutex
-
-func gerarTransacaoID() int {
-	transacaoMutex.Lock()
-	defer transacaoMutex.Unlock()
-	transacaoCounter++
-	return transacaoCounter
+func gerarTransacaoID() string {
+	return uuid.New().String()
 }
 
 func TestConcorrenciaDepositoSaque(t *testing.T) {
@@ -35,6 +31,11 @@ func TestConcorrenciaDepositoSaque(t *testing.T) {
 		t.Fatalf("Erro ao conectar ao servidor: %v", err)
 	}
 	defer client.Close()
+
+	err = client.Call("ServicoContas.LimparDados", struct{}{}, &struct{}{})
+	if err != nil {
+		t.Fatalf("Erro ao limpar dados do servidor: %v", err)
+	}
 
 	var idConta int
 	err = client.Call("ServicoContas.AbrirConta", 1000.0, &idConta)
@@ -107,6 +108,11 @@ func TestIdempotenciaTransacao(t *testing.T) {
 	}
 	defer client.Close()
 
+	err = client.Call("ServicoContas.LimparDados", struct{}{}, &struct{}{})
+	if err != nil {
+		t.Fatalf("Erro ao limpar dados do servidor: %v", err)
+	}
+
 	var idConta int
 	err = client.Call("ServicoContas.AbrirConta", 1000.0, &idConta)
 	if err != nil {
@@ -153,6 +159,11 @@ func TestIdempotenciaComFalhaDeRede(t *testing.T) {
 	}
 	defer client.Close()
 
+	err = client.Call("ServicoContas.LimparDados", struct{}{}, &struct{}{})
+	if err != nil {
+		t.Fatalf("Erro ao limpar dados do servidor: %v", err)
+	}
+
 	var idConta int
 	err = client.Call("ServicoContas.AbrirConta", 1000.0, &idConta)
 	if err != nil {
@@ -167,7 +178,6 @@ func TestIdempotenciaComFalhaDeRede(t *testing.T) {
 	err = client.Call("ServicoContas.Depositar", args, &resultado) // fez falhar(nao foi pro bd)
 	if err == nil || !resultado {
 		t.Logf("Falha simulada: desconectando o cliente durante a primeira tentativa.")
-		client.Close()
 	}
 
 	client, err = rpc.Dial("tcp", "localhost:1234")

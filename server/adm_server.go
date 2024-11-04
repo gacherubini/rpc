@@ -16,7 +16,7 @@ type Conta struct {
 type ServicoContas struct {
 	contas            map[int]*Conta
 	mutex             sync.Mutex
-	transacoes        map[int]bool
+	transacoes        map[string]bool
 	contadorTransacao int
 	contadorConta     int
 }
@@ -24,13 +24,13 @@ type ServicoContas struct {
 type DepositoArgs struct {
 	IDConta     int
 	Valor       float64
-	TransacaoID int
+	TransacaoID string
 }
 
 type SacarArgs struct {
 	IDConta     int
 	Valor       float64
-	TransacaoID int
+	TransacaoID string
 }
 
 func (s *ServicoContas) AbrirConta(saldoInicial float64, resultado *int) error {
@@ -81,17 +81,20 @@ func (s *ServicoContas) Sacar(args SacarArgs, resultado *bool) error {
 	s.mutex.Unlock()
 
 	*resultado = true
-	fmt.Printf("Saque realizado com sucesso! Conta ID: %d, Valor: %.2f, Transação ID: %d\n", args.IDConta, args.Valor, args.TransacaoID)
+	fmt.Printf("Saque realizado com sucesso! Conta ID: %d, Valor: %.2f, Transação ID: %s\n", args.IDConta, args.Valor, args.TransacaoID)
 	return nil
 }
 
 func (s *ServicoContas) Depositar(args DepositoArgs, resultado *bool) error {
+	// Inicia uma seção crítica para verificar e marcar a transação
 	s.mutex.Lock()
-	if s.transacoes[args.TransacaoID] { // 2 transacoes iguais (impedir)
-		s.mutex.Unlock()
+	if s.transacoes[args.TransacaoID] { // Verifica se a transação já foi processada
+		s.mutex.Unlock() // Se a transação já foi processada, libera o lock
 		*resultado = true
 		return nil
 	}
+
+	s.transacoes[args.TransacaoID] = true
 	conta, existe := s.contas[args.IDConta]
 	s.mutex.Unlock()
 
@@ -105,12 +108,8 @@ func (s *ServicoContas) Depositar(args DepositoArgs, resultado *bool) error {
 
 	conta.Saldo += args.Valor
 
-	s.mutex.Lock()
-	s.transacoes[args.TransacaoID] = true
-	s.mutex.Unlock()
-
 	*resultado = true
-	fmt.Printf("Depósito realizado com sucesso! Conta ID: %d, Valor: %.2f, Transação ID: %d\n", args.IDConta, args.Valor, args.TransacaoID)
+	fmt.Printf("Depósito realizado com sucesso! Conta ID: %d, Valor: %.2f, Transação ID: %s\n", args.IDConta, args.Valor, args.TransacaoID)
 	return nil
 }
 
@@ -153,7 +152,7 @@ func (s *ServicoContas) LimparDados(_ struct{}, _ *struct{}) error {
 	defer s.mutex.Unlock()
 
 	s.contas = make(map[int]*Conta)
-	s.transacoes = make(map[int]bool)
+	s.transacoes = make(map[string]bool)
 	s.contadorConta = 1
 	s.contadorTransacao = 1
 
@@ -164,7 +163,7 @@ func (s *ServicoContas) LimparDados(_ struct{}, _ *struct{}) error {
 func main() {
 	servico := &ServicoContas{
 		contas:            make(map[int]*Conta),
-		transacoes:        make(map[int]bool),
+		transacoes:        make(map[string]bool),
 		contadorTransacao: 1,
 		contadorConta:     1,
 	}

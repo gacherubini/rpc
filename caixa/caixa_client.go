@@ -5,29 +5,24 @@ import (
 	"net/rpc"
 	"os"
 	"strconv"
-	"sync"
+
+	"github.com/google/uuid"
 )
 
 type DepositoArgs struct {
 	IDConta     int
 	Valor       float64
-	TransacaoID int
+	TransacaoID string
 }
 
 type SacarArgs struct {
 	IDConta     int
 	Valor       float64
-	TransacaoID int
+	TransacaoID string
 }
 
-var transacaoCounter int
-var transacaoMutex sync.Mutex
-
-func gerarTransacaoID() int {
-	transacaoMutex.Lock()
-	defer transacaoMutex.Unlock()
-	transacaoCounter++
-	return transacaoCounter
+func gerarTransacaoID() string {
+	return uuid.New().String()
 }
 
 func main() {
